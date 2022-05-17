@@ -283,4 +283,67 @@ mod.dr <- bikes.simplified %>% model(ARIMA(TotalBikes ~ weekday + totalSnow_cm +
 
 #So, either the aggregated TSLM model or the regular TSLM model can be used for forecasting. The next step is to just forecast
 
+#separate models for bikes and e-bikes:
+bikes.ts.lm <- bikes.ts %>% model(TSLM(Bike ~ weekday + totalSnow_cm + uvIndex + HeatIndexC + WindChillC +
+                                              WindGustKmph + cloudcover + humidity + precipMM + maxtempC + visibility + windspeedKmph +
+                                              timeofday + holiday))
 
+augment(bikes.ts.lm) %>% filter(name == 'Nyon, Gare Sud') %>% 
+  ggplot(aes(x = date)) +
+  geom_line(aes(y = Bike, colour = "Data"), size = 1) +
+  geom_line(aes(y = .fitted, colour = "Fitted"), size = 1) + xlab("Year") + ylab(NULL) +
+  guides(colour = guide_legend(title=NULL))
+
+
+bikes.ts.lm %>% filter(name == 'Nyon, Gare Sud') %>% report()
+
+ebikes.ts.lm <- bikes.ts %>% model(TSLM(`E-Bike` ~ weekday + totalSnow_cm + uvIndex + HeatIndexC + WindChillC +
+                                         WindGustKmph + cloudcover + humidity + precipMM + maxtempC + visibility + windspeedKmph +
+                                         timeofday + holiday))
+
+augment(ebikes.ts.lm) %>% filter(name == 'Nyon, Gare Sud') %>% 
+  ggplot(aes(x = date)) +
+  geom_line(aes(y = `E-Bike`, colour = "Data"), size = 1) +
+  geom_line(aes(y = .fitted, colour = "Fitted"), size = 1) + xlab("Year") + ylab(NULL) +
+  guides(colour = guide_legend(title=NULL))
+
+
+ebikes.ts.lm %>% filter(name == 'Nyon, Gare Sud') %>% report()
+
+
+#R-Squared for each of the models
+reportbikes <- report(bikes.ts.lm)
+reportebikes <- report(ebikes.ts.lm)
+reporttotal <- report(bikes.lm)
+
+cbind(reportbikes$adj_r_squared, reportebikes$adj_r_squared, reporttotal$adj_r_squared)
+mean(reportbikes$adj_r_squared)
+mean(reportebikes$adj_r_squared)
+mean(reporttotal$adj_r_squared)
+
+library(broom)
+pca <- bikes.simplified %>% keep(is.numeric) %>% prcomp(scale = TRUE)
+summary(pca)$importance[, 1:4]
+
+bikes.df <- as.data.frame(bikes.simplified)
+
+pca_for_chart <- pca %>% augment(bikes.df)
+ggplot(pca_for_chart, aes(x = .fittedPC1, y = .fittedPC2)) +
+  geom_point() + theme(aspect.ratio = 1)
+summary(pca)$importance[, 1:4]
+
+
+ggplot(bikes.simplified) + geom_boxplot(aes(x = name, y = TotalBikes), coef = 3) + coord_flip()
+
+
+outlierdetection <- bikes.simplified %>% filter(name == 'Nyon, La Plage')
+
+outlier <- boxplot.stats(outlierdetection$TotalBikes)$out
+out_ind <- which(outlierdetection$TotalBikes %in% c(outlier))
+outlierdetection
+
+ggplot(outlierdetection[out_ind,]) + geom_jitter(aes(x = date, y = TotalBikes))
+
+
+bikes.simplified %>% filter(as.Date(date) %in% seq(as.Date("2022-03-21"), as.Date("2022-03-28"), by = 1)) %>%
+                                        ggplot() + geom_point(aes(x = date, y = maxtempC))
