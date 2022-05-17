@@ -1,29 +1,217 @@
----
-title: "modeling"
-output: html_document
-date: '2022-05-17'
----
+# Modeling
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r, echo = FALSE, message = FALSE}
+source(here::here("scripts/setup.R"))
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r, echo=FALSE}
+#now let's build a TSLM model
+bikes.lm <- bikes.simplified %>% model(TSLM(TotalBikes ~ weekday + totalSnow_cm + uvIndex + HeatIndexC + WindChillC +
+                                       WindGustKmph + cloudcover + humidity + precipMM + maxtempC + visibility + windspeedKmph +
+                                         timeofday + holiday))
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+bikes.lm %>% filter(name == 'Nyon, Gare Sud') %>% report()
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r, echo=FALSE}
+#checking model vs fitted values (for 1 place)
+augment(bikes.lm) %>% filter(name == 'Nyon, Gare Sud') %>% 
+  ggplot(aes(x = date)) +
+  geom_line(aes(y = TotalBikes, colour = "Data"), size = 1) +
+  geom_line(aes(y = .fitted, colour = "Fitted"), size = 1) + xlab("Year") + ylab(NULL) +
+  guides(colour = guide_legend(title=NULL))
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r, echo=FALSE}
+#relationship between actual and fitted values
+augment(bikes.lm) %>% filter(name == 'Nyon, Gare Sud') %>% 
+  ggplot(aes(x = TotalBikes, y = .fitted)) + geom_point() +
+  ylab("Fitted (predicted values)") + xlab("Data (actual values)") +
+  geom_abline(intercept = 0, slope = 1)
+```
+
+```{r, echo=FALSE}
+#checking residuals
+bikes.lm %>% filter(name == 'Nyon, Gare Sud') %>% gg_tsresiduals()
+```
+
+```{r, echo=FALSE}
+#for TSLM
+bikes.hts <- bikes.simplified %>%
+  aggregate_key(name, Total = sum(TotalBikes), weekday = weekday, totalSnow_cm = totalSnow_cm, uvIndex = uvIndex, HeatIndexC = HeatIndexC, WindChillC = WindChillC,
+                  WindGustKmph = WindGustKmph, cloudcover = cloudcover, humidity = humidity,  precipMM = precipMM, maxtempC = maxtempC,  visibility = visibility, windspeedKmph = windspeedKmph,
+                  timeofday = timeofday, holiday = holiday)
+
+bikes.hts <- bikes.hts[!duplicated(bikes.hts$date),]
+
+bikes.hts2 <- bikes.simplified %>% aggregate_key(name, Total = sum(TotalBikes))
+```
+
+
+```{r, echo=FALSE}
+#Aggregated Model
+bikes.TSLM <- bikes.hts %>% filter(is_aggregated(name)) %>% model(TSLM(Total ~ weekday + totalSnow_cm + uvIndex + HeatIndexC + WindChillC +
+                                                                    WindGustKmph + cloudcover + humidity + precipMM + maxtempC + visibility + windspeedKmph +
+                                                                    timeofday + holiday))
+augment(bikes.TSLM) %>% 
+  ggplot(aes(x = date)) +
+  geom_line(aes(y = Total, colour = "Data"), size = 1) +
+  geom_line(aes(y = .fitted, colour = "Fitted"), size = 1) + xlab("Year") + ylab(NULL) +
+  guides(colour = guide_legend(title=NULL))
+
+bikes.hts3 <- as.data.frame(bikes.hts2)
+
+area.chart <- bikes.hts3 %>% group_by(date, name) %>% summarize(total = sum(Total)) %>% mutate(freq = total/sum(total))
+area.chart
+```
+
+
+```{r, echo=FALSE}
+#let's try using an ets model on the aggregated one
+bikes.agg.ets <- bikes.hts2 %>% filter(is_aggregated(name)) %>% model(ETS(Total ~ error("A") + trend("Ad") + season("A")))
+
+augment(bikes.agg.ets) %>% 
+  ggplot(aes(x = date)) +
+  geom_line(aes(y = Total, colour = "Data"), size = 1) +
+  geom_line(aes(y = .fitted, colour = "Fitted"), size = 1) + xlab("Year") + ylab(NULL) +
+  guides(colour = guide_legend(title=NULL))                                                                  
+
+bikes.agg.ets %>% augment()
+
+bikes.agg.ets %>% forecast(h = 240) %>% autoplot(bikes.hts2)
+#forecast appears usless
+```
+
+
+```{r, echo=FALSE}
+#let's check last weeks data
+
+bikes.hts %>% filter(date > as.Date("2022-05-10")) %>% autoplot()
+```
+
+
+```{r, echo=FALSE}
+#how about a simple ARIMA?
+bikes.hts %>% features(Total, unitroot_kpss)
+bikes.hts %>% mutate(diff_Total = difference(Total)) %>% features(diff_Total, unitroot_kpss)
+bikes.hts %>% features(Total, unitroot_ndiffs)
+
+fit <- bikes.hts %>% model(ARIMA(Total))
+report(fit)                                   
+fit %>% forecast(h = 240) %>% autoplot(bikes.hts)
+                               
+bikes.hts %>% gg_tsdisplay(plot_type = "partial")
+    
+#also a fairly useless forecast
+```
+
+
+```{r, echo=FALSE}
+#let's try DYNAMIC REGRESSION now
+
+dr.agg <- bikes.hts %>% model(ARIMA(Total ~ weekday + totalSnow_cm + uvIndex + HeatIndexC + WindChillC +
+                                      WindGustKmph + cloudcover + humidity + precipMM + maxtempC + visibility + windspeedKmph +
+                                      timeofday + holiday))
+
+augment(dr.agg) %>% 
+  ggplot(aes(x = date)) +
+  geom_line(aes(y = Total, colour = "Data"), size = 1) +
+  geom_line(aes(y = .fitted, colour = "Fitted"), size = 1) + xlab("Year") + ylab(NULL) +
+  guides(colour = guide_legend(title=NULL))  
+
+#horrible overfit
+```
+
+
+```{r, echo=FALSE}
+#without aggregation - DON'T RUN THIS. WILL TAKE 20 YEARS TO RUN
+mod.dr <- bikes.simplified %>% model(ARIMA(TotalBikes ~ weekday + totalSnow_cm + uvIndex + HeatIndexC + WindChillC +
+                                             WindGustKmph + cloudcover + humidity + precipMM + maxtempC + visibility + windspeedKmph +
+                                             timeofday + holiday))
+
+
+#So, either the aggregated TSLM model or the regular TSLM model can be used for forecasting. The next step is to just forecast
+```
+
+
+```{r, echo=FALSE}
+#separate models for bikes and e-bikes:
+bikes.ts.lm <- bikes.ts %>% model(TSLM(Bike ~ weekday + totalSnow_cm + uvIndex + HeatIndexC + WindChillC +
+                                              WindGustKmph + cloudcover + humidity + precipMM + maxtempC + visibility + windspeedKmph +
+                                              timeofday + holiday))
+
+augment(bikes.ts.lm) %>% filter(name == 'Nyon, Gare Sud') %>% 
+  ggplot(aes(x = date)) +
+  geom_line(aes(y = Bike, colour = "Data"), size = 1) +
+  geom_line(aes(y = .fitted, colour = "Fitted"), size = 1) + xlab("Year") + ylab(NULL) +
+  guides(colour = guide_legend(title=NULL))
+
+
+bikes.ts.lm %>% filter(name == 'Nyon, Gare Sud') %>% report()
+
+ebikes.ts.lm <- bikes.ts %>% model(TSLM(`E-Bike` ~ weekday + totalSnow_cm + uvIndex + HeatIndexC + WindChillC +
+                                         WindGustKmph + cloudcover + humidity + precipMM + maxtempC + visibility + windspeedKmph +
+                                         timeofday + holiday))
+
+augment(ebikes.ts.lm) %>% filter(name == 'Nyon, Gare Sud') %>% 
+  ggplot(aes(x = date)) +
+  geom_line(aes(y = `E-Bike`, colour = "Data"), size = 1) +
+  geom_line(aes(y = .fitted, colour = "Fitted"), size = 1) + xlab("Year") + ylab(NULL) +
+  guides(colour = guide_legend(title=NULL))
+
+
+ebikes.ts.lm %>% filter(name == 'Nyon, Gare Sud') %>% report()
+```
+
+
+```{r, echo=FALSE}
+
+#R-Squared for each of the models
+reportbikes <- report(bikes.ts.lm)
+reportebikes <- report(ebikes.ts.lm)
+reporttotal <- report(bikes.lm)
+
+cbind(reportbikes$adj_r_squared, reportebikes$adj_r_squared, reporttotal$adj_r_squared)
+mean(reportbikes$adj_r_squared)
+mean(reportebikes$adj_r_squared)
+mean(reporttotal$adj_r_squared)
+```
+
+```{r, echo=FALSE}
+pca <- bikes.simplified %>% keep(is.numeric) %>% prcomp(scale = TRUE)
+summary(pca)$importance[, 1:4]
+
+bikes.df <- as.data.frame(bikes.simplified)
+
+pca_for_chart <- pca %>% augment(bikes.df)
+ggplot(pca_for_chart, aes(x = .fittedPC1, y = .fittedPC2)) +
+  geom_point() + theme(aspect.ratio = 1)
+summary(pca)$importance[, 1:4]
+```
+
+
+```{r, echo=FALSE}
+ggplot(bikes.simplified) + geom_boxplot(aes(x = name, y = TotalBikes), coef = 3) + coord_flip()
+```
+
+```{r, echo=FALSE}
+outlierdetection <- bikes.simplified %>% filter(name == 'Nyon, La Plage')
+
+outlier <- boxplot.stats(outlierdetection$TotalBikes)$out
+out_ind <- which(outlierdetection$TotalBikes %in% c(outlier))
+outlierdetection
+
+ggplot(outlierdetection[out_ind,]) + geom_jitter(aes(x = date, y = TotalBikes))
+```
+
+
+```{r, echo=FALSE}
+bikes.simplified %>% filter(as.Date(date) %in% seq(as.Date("2022-03-21"), as.Date("2022-03-28"), by = 1)) %>%
+                                        ggplot() + geom_point(aes(x = date, y = maxtempC))
+
+```
+
+ 
+
+
