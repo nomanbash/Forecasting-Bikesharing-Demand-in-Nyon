@@ -1,0 +1,9 @@
+---
+title: "Forecasting Project  - Bikesharing"
+author: "Noman Bashir, Edward Tandia, Nadine Obeid,  Camelia Saranciuc"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r child = c('intro.Rmd', 'eda.Rmd', 'modeling.Rmd', 'Conclusion.Rmd')}
+```

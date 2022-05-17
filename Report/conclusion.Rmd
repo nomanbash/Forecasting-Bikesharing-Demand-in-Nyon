@@ -1,0 +1,5 @@
+##Forecast table 
+Mmust contain 4 columns containing the name of the station, 
+time (ranging from 00:00 to 23:50 in 10minute intervals), 
+the forecast and 
+upper confidence interval.
