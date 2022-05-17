@@ -157,6 +157,7 @@ ggplot(total.ts) +
 
 #loading weather data
 weather <- read.csv("Nyon.csv")
+weather$date_time
 
 weather <- weather %>% select(-c('tempC', 'mintempC', 'sunHour', 'moon_illumination', 'moonrise', 'moonset', 'sunrise', 'sunset',
                      'DewPointC', 'pressure', 'FeelsLikeC', 'winddirDegree', 'location'))
@@ -347,3 +348,28 @@ ggplot(outlierdetection[out_ind,]) + geom_jitter(aes(x = date, y = TotalBikes))
 
 bikes.simplified %>% filter(as.Date(date) %in% seq(as.Date("2022-03-21"), as.Date("2022-03-28"), by = 1)) %>%
                                         ggplot() + geom_point(aes(x = date, y = maxtempC))
+
+
+max(bikes.simplified$date)
+
+colnames(bikes.simplified)
+
+
+newdata <- read.csv("newdata.csv")
+
+newdata <- newdata %>% select(-c('tempC', 'mintempC', 'sunHour', 'moon_illumination', 'moonrise', 'moonset', 'sunrise', 'sunset',
+                                             'DewPointC', 'pressure', 'FeelsLikeC', 'winddirDegree', 'location'))
+
+newdata$date <- as.POSIXct(newdata$date_time, format = "%d/%m/%Y %H:%M", tz = "UTC")
+newdata$date
+newdata$timeofday <- as.factor(nightday(newdata$date))
+newdata$weekday <- as.factor(ifelse(isWeekday(newdata$date), "Weekday", "Weekend"))
+newdata$holiday <- 0
+
+newdata.ts <- as_tsibble(newdata, index = date, key = name)
+
+newdata.ts <- newdata.ts %>% select(-date_time)
+
+fcast <- forecast(bikes.lm, new_data = newdata.ts)
+
+fcast %>% filter(name == 'Nyon, Changins') %>% autoplot()
