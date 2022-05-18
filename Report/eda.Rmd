@@ -7,42 +7,43 @@ source(here::here("scripts/setup.R"))
 
 ```{r, echo = FALSE, message = FALSE, warning = FALSE}
 #  Load the cleaned dataset from the data.Rmd
-bikesharing <- read_csv(file = here::here("Data/Nyon.csv"))
+total <- read_csv(file = here::here("total.csv"))
 ```
 
 ## Exploration and Visualization: 
 
 ```{r, echo=FALSE}
-stations <- c("Nyon, Changins", "Nyon, Château","Nyon, Débarcadère",
-              "Nyon, Gare Nord","Nyon, Gare Sud",
-              "Nyon, Hôpital",
-              "Nyon, Hostel",
-              "Nyon, La Plage",
-              "Nyon, Petit Perdtemps",
-              "Nyon, Piscine du Cossy",
-              "Nyon, Place de Savoie",
-              "Nyon, Stade de Colovray",
-              "Nyon, Triangle de l'Etraz")
+# stations <- c("Nyon, Changins", "Nyon, Château","Nyon, Débarcadère",
+#               "Nyon, Gare Nord","Nyon, Gare Sud",
+#               "Nyon, Hôpital",
+#               "Nyon, Hostel",
+#               "Nyon, La Plage",
+#               "Nyon, Petit Perdtemps",
+#               "Nyon, Piscine du Cossy",
+#               "Nyon, Place de Savoie",
+#               "Nyon, Stade de Colovray",
+#               "Nyon, Triangle de l'Etraz")
+# 
+# changins <- stations[['Nyon, Changins']]
+# debarcadere <- stations[['Nyon, Débarcadère']]
+# garesud <- stations[['Nyon, Gare Sud']]
+# piscine <- stations[['Nyon, Piscine du Cossy']]
+# hopital <- stations[['Nyon, Hôpital']]
+# perdtemps <- stations[['Nyon, Petit Perdtemps']]
+# hostel <- stations[['Nyon, Hostel']]
+# savoie <- stations[['Nyon, Place de Savoie']]
+# plage <- stations[['Nyon, La Plage']]
+# colovray <- stations[['Nyon, Stade de Colovray']]
+# triangle <- stations[['Nyon, Triangle de l\'Etraz']]
+# gare_nord <- stations[['Nyon, Gare Nord']]
+# chateau <- stations[['Nyon, Château']]
 
-changins <- bikesharing[['Nyon, Changins']]
-debarcadere <- bikesharing[['Nyon, Débarcadère']]
-garesud <- bikesharing[['Nyon, Gare Sud']]
-piscine <- bikesharing[['Nyon, Piscine du Cossy']]
-hopital <- bikesharing[['Nyon, Hôpital']]
-perdtemps <- bikesharing[['Nyon, Petit Perdtemps']]
-hostel <- bikesharing[['Nyon, Hostel']]
-savoie <- bikesharing[['Nyon, Place de Savoie']]
-plage <- bikesharing[['Nyon, La Plage']]
-colovray <- bikesharing[['Nyon, Stade de Colovray']]
-triangle <- bikesharing[['Nyon, Triangle de l\'Etraz']]
-gare_nord <- bikesharing[['Nyon, Gare Nord']]
-chateau <- bikesharing[['Nyon, Château']]
 ```
 
 
 
 ```{r, echo=FALSE}
-total <- rbind(changins, debarcadere, garesud, piscine, hopital, perdtemps, hostel, savoie, plage, colovray, triangle, gare_nord, chateau)
+#total <- rbind(changins, debarcadere, garesud, piscine, hopital, perdtemps, hostel, savoie, plage, colovray, triangle, gare_nord, chateau)
 total$date <- as.POSIXct(total$date)
 total.ts <- as_tsibble(total, index = date, key = name, regular = TRUE)
 total.ts %>% autoplot(Bike, show.legend = TRUE) + facet_wrap(vars(name)) + ggtitle("Bikes by Station")
@@ -200,7 +201,7 @@ ggplot(total.ts) +
 
 ```{r, echo=FALSE}
 #loading weather data
-weather <- read.csv("Nyon.csv")
+weather <- read.csv("../Data/Nyon.csv")
 
 weather <- weather %>% select(-c('tempC', 'mintempC', 'sunHour', 'moon_illumination', 'moonrise', 'moonset', 'sunrise', 'sunset',
                      'DewPointC', 'pressure', 'FeelsLikeC', 'winddirDegree', 'location'))
@@ -224,5 +225,5 @@ bikes.simplified %>% ggplot() +
   geom_jitter(aes(x = date, y = TotalBikes, color = maxtempC)) +
   scale_color_gradient(low = "blue", high = "red")
 
-bikes.
+bikes
 ```
