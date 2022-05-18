@@ -4,14 +4,14 @@
 
 # load the required packages
 packages <- c(
-  "knitr", "readr", "dplyr", "reshape2", "here", # for the project's organization
-  "tidyverse", "tidyr", "DataExplorer", "lubridate", "summarytools", #Cleaning and exploring
-  "usethis", # git
-  "plotly", "GGally", "corrplot", "ggplot2", "ggridges", "ggcorrplot", #for plotting
+  "knitr","dplyr", "reshape2", "here", # for the project's organization
+  "tidyverse", "summarytools", #Cleaning and exploring
+  "GGally", "corrplot", "ggplot2", #for plotting
   "lattice", "FactoMineR", "factoextra", "gridExtra", "fpp3", "zoo", "timeDate", "data.table", "broom"
 )
 
 purrr::walk(packages, library, character.only = TRUE)
+install.packages("packages")
 
 ######################################################
 ## The following sets a few option for nice reports ##

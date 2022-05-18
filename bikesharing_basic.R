@@ -41,18 +41,25 @@ total.ts <- as_tsibble(total, index = date, key = name, regular = TRUE)
 total.ts %>% autoplot(Bike, show.legend = FALSE) + facet_wrap(vars(name)) + ggtitle("Bikes by Station")
 
 #we can see long periods of the same number of bikes. To deal with NAs, we'll just replace the NAs with the last value
+total.ts %>% scan_gaps()
 total.ts <- total.ts %>% fill_gaps(.full = TRUE)
 total.ts <- na.locf(total.ts)
 total.ts %>% scan_gaps()
 
 #we don't need capacity
 total.ts <- total.ts %>% select(!Capacity)
+total.ts
 
 #let's add a sum of the two bikes
 total.ts <- total.ts %>% mutate(TotalBikes = Bike + `E-Bike`)
 
-total.ts %>% summarize(count = sum(TotalBikes)) %>% autoplot() + ggtitle("Bike Demand in Nyon", subtitle = "Combined Bikes and E-Bikes Demand") + xlab("Time")
-total.ts %>% summarize(bikecount = sum(Bike), ebikecount = sum(`E-Bike`)) %>% ggplot(aes(x = date)) + geom_line(aes(y = bikecount), col = "red") + geom_line(aes(y = ebikecount), col = "blue")
+total.ts %>% summarize(count = sum(TotalBikes)) %>% autoplot() + ggtitle("Bike Demand in Nyon", subtitle = "Combined Bikes and E-Bikes Demand") + xlab("Time") + ylab("Count of Bikes")
+total.ts %>% 
+  summarize(bikecount = sum(Bike), ebikecount = sum(`E-Bike`)) %>%
+  ggplot(aes(x = date)) + 
+  geom_line(aes(y = bikecount), col = "red") +
+  geom_line(aes(y = ebikecount), col = "blue") +
+  labs(title = "Bike Demand in Nyon", x = "Date", y = "Count of Bikes")
 
 #plotting e-bikes and bikes together
 total.ts %>%
@@ -67,12 +74,13 @@ total.ts %>%
 total.ts %>%
   group_by() %>%
   summarize(bikecount = sum(Bike), ebikecount = sum(`E-Bike`)) %>%
-  ggplot() + geom_point(aes(bikecount, ebikecount)) + geom_abline(aes(intercept = 0,slope = 1))
-
-#there doesn't seem to be any great correlation between the two.
+  ggplot() + 
+  geom_jitter(aes(bikecount, ebikecount)) +
+  geom_smooth(se = FALSE, method = 'lm', aes(bikecount, ebikecount)) +
+  labs(title = "Correlation between Bike Demand and E-Bike Demand", x = "Bikes", y = "E-Bikes")
 
 #Let's see if there's a correlation between e-bike count and bike-count based on location
-total.ts %>% ggplot() + geom_point(aes(Bike, `E-Bike`)) + facet_wrap(vars(name))
+total.ts %>% ggplot() + geom_jitter(aes(Bike, `E-Bike`)) + facet_wrap(vars(name))
 with(total.ts, cor(Bike, `E-Bike`))
 
 #there's a lot of data at 10-minute intervals, let's join it together to make an hourly dataset
