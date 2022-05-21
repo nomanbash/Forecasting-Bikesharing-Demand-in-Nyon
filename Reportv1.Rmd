@@ -2,7 +2,10 @@
 title: "Predicting Bikesharing Demand"
 author: "Group Nyon"
 date: "`r Sys.Date()`"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
 ---
 
 ```{r data, include = FALSE}
@@ -12,15 +15,17 @@ library(fpp3)
 library(zoo)
 library(timeDate)
 library(patchwork)
+library(kableExtra)
 ```
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Introduction
 
-This project focuses on estimating demand at each of the 13 bike-sharing stations in the city of Nyon, Switzerland. The stations are as follows:
+This project focuses on estimating demand at each of the 13 bike-sharing stations in the city of Nyon, Switzerland. The stations are Changins, Débarcadère, Gare Sud, Piscine du Cossy, Hôpital, Petit Perdtemps, Hostel, Place de Savoie, La Plage, Stade de Colovray, Triangle de l'Etraz, Gare Nord, and Château.  
+
 
 This map shows how the stations are spread out across Nyon. Apart from the two bike stations around Nyon Gare, most stations are spread out.
 
@@ -52,7 +57,7 @@ total <- rbind(changins, debarcadere, garesud, piscine, hopital, perdtemps, host
 
 ## Data Wrangling
 
-The dataset had several missing values. While most of the data was at intervals of 10 minutes, there were several cases where data was at half-hourly intervals. In order to deal with the missing data, graphs were created that showed how much the data varied across hours. The analysis revealed that the number of bikes and e-bikes at stations does not differ that much from hour to hour, there fore it is unlikely that it differs within 30 minute intervals either. The gaps were hence filled with the last previous available value. Capacity was also removed to save space as it is a constant value and does not affect the forecast. Dates were converted into R's POSIXct format for ease of use. `TotalBikes` was created as a sum of `Bike` and `E-Bike`. After this, the dataset was divided into training and test sets to test accuracy. Data prior to May 11th was used as the training set and the remaining two weeks data was used as a test set.
+The dataset had several missing values. While most of the data was at intervals of 10 minutes, there were several cases where data was at half-hourly intervals. In order to deal with the missing data, graphs were created that showed how much the data varied across hours. The analysis revealed that the number of bikes and e-bikes at stations does not differ that much from hour to hour, therefore it is unlikely that it differs within 30 minute intervals either. The gaps were hence filled with the last previous available value. Capacity was also removed to save space as it is a constant value and does not affect the forecast. Dates were converted into R's POSIXct format for ease of use. `TotalBikes` was created as a sum of `Bike` and `E-Bike`. After this, the dataset was divided into training and test sets to test accuracy. Data prior to May 11th was used as the training set and the remaining two weeks data was used as a test set.
 
 ``` {r datawrangling1, include = FALSE}
 total$date <- as.POSIXct(total$date)
@@ -67,7 +72,7 @@ test.ts <- total.ts %>% filter(as.Date(date) >= as.Date("2022-05-11"))
 total.ts <- total.ts %>% filter(as.Date(date) < as.Date("2022-05-11"))
 ```
 
-```{r TotalBikesPlotAllDatesAllRegions, echo=FALSE, fig.cap= "Fig 1.1 - Variable demand across each station"}
+```{r TotalBikesPlotAllDatesAllRegions, echo=FALSE, fig.cap= "Variable demand across each station"}
 total.ts %>%
   autoplot(TotalBikes, show.legend = FALSE) +
   facet_wrap(vars(name)) +
@@ -76,23 +81,26 @@ total.ts %>%
   xlab("Date")
 ```
 
-The plot above shows the number of bikes at each station in Nyon. There is no clear correlation between the graphs and their locations are far enough that the group decided against them. As each graph exhibits variable seasonality in terms of time of day and week. Further decomposition of seasonality to motivate this choice can be found in Fig 1.1 in the Appendix.
+Figure 2 with all its plots shows the number of bikes at each station in Nyon. There is no clear correlation between the graphs and their locations are far enough that the group decided against them. As each graph exhibits variable seasonality in terms of time of day and week. Further decomposition of seasonality to motivate this choice can be found in Fig 1.1 in the Appendix.
 
-```{r TotalBikeDemandByTime, echo = FALSE, fig.cap="Fig 1.2 Combined Bike Demand"}
-total.ts %>% 
+
+```{r TotalBikeDemandByTime, echo = FALSE, warning=FALSE, message=FALSE, fig.width=6, fig.height=3, fig.cap= "Bike and E-Bike Demand" }
+bike_demand <- total.ts %>% 
   summarize(count = sum(TotalBikes)) %>% 
   autoplot() + 
   ggtitle("Bike Demand in Nyon", 
           subtitle = "Combined Bikes and E-Bikes Demand") + 
   xlab("Time") + 
   ylab("Count of Bikes")
+
+bike_demand 
 ```
 
-Fig 1.2 shows that the total bike demand is erratic. There is a clear drop in the last week of March, possibly owing due to the snowy conditions in Western Switzerland.
+Figure 3 shows that the total bike demand is erratic. There is a clear drop in the last week of March, possibly owing due to the snowy conditions in Western Switzerland.
 
-`Bike` and `E-Bike` are to compared next:
+As part of our data understanding process, we wanted to see whether there was a relationship or even a difference in demand between the normal bikes and the e-bikes. Therefore, we have calculated the correlation between them. 
 
-``` {r bikeandebikecomparison, echo = FALSE, warning = FALSE, message = FALSE}
+``` {r, echo = FALSE, warning = FALSE, message = FALSE, include = FALSE }
 
 #plotting e-bikes and bikes together
 p1 <- total.ts %>%
@@ -112,12 +120,15 @@ p2 <- total.ts %>%
         geom_jitter(aes(bikecount, ebikecount)) +
         geom_smooth(se = FALSE, method = 'lm', aes(bikecount, ebikecount)) +
         labs(title = "Correlation between Bike Demand and E-Bike Demand", x = "Bikes", y = "E-Bikes")
-
-(p2) / (p1)
-
 ```
 
-Intuitively, bike demand depends on a number of factors such as time of day, the day of the week and the weather. The dataset already contains information that can be used to create new features such as `timeofday`, `weekday` and `holidays`. Data regarding holidays was extracted from the commune's website.
+``` {r, echo = FALSE, warning = FALSE, message = FALSE}
+(p2) / (p1)
+```
+<br>
+After studying the correlation, we could see a slight correlation between bikes and e-bikes but there wasn't a huge difference between the demand on both so we have decided to combine them and wirk on "Total Bikes" instead. 
+<br>
+Intuitively, bike demand depends on a number of factors such as time of day, the day of the week, public holidays and the weather. The dataset already contains information that can be used to create new features such as `timeofday`, `weekday` and `holidays`. Data regarding holidays was extracted from the commune's website.
 
 ``` {r featureenginerring, include = FALSE}
 
@@ -126,10 +137,10 @@ holidays <- c(as.Date("2022-04-15"),as.Date("2022-04-17"),as.Date("2022-04-18"),
 total.ts$holiday <- as.factor(ifelse(as.Date(total.ts$date) %in% holidays, 1, 0))
 ```
 
-The boxplots show how `TotalBikes` differs at each station depending on whether it's a weekend/weekday and whether the day in question is a public holiday. In this time frame, the most relevant public holidays were: Easter and Labour Day.
+The boxplots show how `TotalBikes` differs at each station depending on whether it's a weekend or a weekday and whether the day in question is a public holiday (0 for No and 1 for Yes). In this time frame, the most relevant public holidays were: Easter and Labour Day.
 
-``` {r boxplotholidayweekend, echo = TRUE, fig.dim = c(15,10)}
-
+``` {r boxplotholidayweekend, echo = FALSE, fig.dim = c(15,10)}
+#bikes.ts$holiday <- ifelse(bikes.ts$holiday == 0, "No", "Yes")
 b1 <- ggplot(total.ts) +
   geom_boxplot(aes(x = name, y = TotalBikes, color = weekday)) +
   coord_flip()
@@ -144,7 +155,7 @@ b2 <- ggplot(total.ts) +
 
 There doesn't seem to be much variation in the total number of bikes available when it comes to weekdays vs weekends. However, there is a clear difference between holidays and non-holidays. Areas like La Plage have no demand on holidays such as Easter Monday and the number of bikes available at the station is very high.
 
-Next, we add the weather data and see if it has an impact on the available bikes at each station. Weather data was accessed using `WorldWeatherOnline` API. WWO provides a number of metrics such as temperature, precipitation, visibility among others. The assumption is that better weather leads to more bikes in demand.
+Next, we add the weather data and see if it has an impact on the available bikes at each station. Weather data was accessed using `WorldWeatherOnline` API. WWO provides a number of metrics such as temperature, precipitation, visibility among many others. The assumption is that better weather leads to more bikes in demand.
 
 ```{r loadingweatherdata, include = FALSE}
 weather <- read.csv("Data/weather_data.csv")
@@ -159,13 +170,20 @@ bikes.ts <- as_tsibble(bikes, index = date, key = name, regular = TRUE)
 bikes.simplified <- bikes.ts %>% select(!c(Bike, `E-Bike`, date_time))
 ```
 
-Let's look at that assumption using a temperature colored graph for one station `Nyon, Gare Nord`:
+Let's look at that assumption in figure 4 using a temperature colored graph for one station `Nyon, Gare Nord`:
 
-```{r tempgraph, echo = TRUE, fig.cap = "Correlation between temperature and number of bikes at station"}
+```{r tempgraph, echo = FALSE, fig.cap = "Correlation between temperature and number of bikes at station"}
 bikes.simplified %>% filter(name == 'Nyon, Gare Nord') %>% ggplot() +
   geom_line(aes(x = date, y = TotalBikes, color = maxtempC)) +
   scale_color_gradient(low = "blue", high = "red") +
   labs(title = "Bike Count by Temperature", x = 'Date', y = 'Number of Bikes at Station')
 ```
 
-We can see that there is some correlation between weather and the number of bikes. As the temperature is higher, there are fewer bikes available at a station, as the temperature is lower. There are more bikes available.
+We can see that there is some correlation between weather and the number of bikes. As the temperature is higher, there are fewer bikes available at a station, as the temperature is lower. There are more bikes available. Therefore, we will be accounting for the temperature in our forecast. 
+
+# Forecast
+The table below shows the first 6 rows of the forecast that we have done for May 25, 2022. You can refer to the .csv file for all the forecasts
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+forecast <- read_csv(file = here::here("forecast.csv"))
+kable(head(forecast)) %>% kable_styling(full_width = F)
+```
