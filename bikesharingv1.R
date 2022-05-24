@@ -119,6 +119,11 @@ bikes.simplified %>% filter(name == 'Nyon, Gare Nord') %>% ggplot() +
   geom_line(aes(x = date, y = TotalBikes, color = maxtempC)) +
   scale_color_gradient(low = "blue", high = "red")
 
+bikes.hts %>% filter(is_aggregated(name)) %>%  ggplot() +
+  geom_line(aes(x = date, y = Total, color = maxtempC)) +
+  scale_color_gradient(low = "blue", high = "red")
+
+
 #let's try and detect outliers in the data using PCA --APPENDIX
 pca <- bikes.simplified %>% keep(is.numeric) %>% prcomp(scale = TRUE)
 summary(pca)$importance[, 1:4]
@@ -213,7 +218,9 @@ augment(bikes.lm) %>% filter(name == 'Nyon, Gare Sud') %>%
 bikes.lm %>% filter(name == 'Nyon, Gare Sud') %>% gg_tsresiduals()
 
 #forecasting accuracy:
-#All right, now that we've done all of that nonsense, let's forecast!
+#building the exogenous variables for the future forecast
+
+
 newdata <- read.csv("Data/newdata.csv")
 newdata <- newdata %>% select(-c('tempC', 'mintempC', 'sunHour', 'moon_illumination', 'moonrise', 'moonset', 'sunrise', 'sunset',
                                  'DewPointC', 'pressure', 'FeelsLikeC', 'winddirDegree', 'location'))
@@ -246,7 +253,7 @@ accuracymatrix <- rbind(accuracymatrix, fcast.lm %>% accuracy(test.ts) %>% selec
 bikes.hts <- bikes.simplified %>%
   aggregate_key(name, Total = sum(TotalBikes))
 
-#let's try using an ets model on the aggregated one --APPENDIX
+#ETS model
 bikes.agg.ets <- bikes.hts %>% model(AggregateETS = ETS(Total))
 bikes.ets <- bikes.simplified %>% model(SimpleETS = ETS(TotalBikes ~ error("A") + season("A")))
 
@@ -260,7 +267,7 @@ bikes.ets %>% filter(name == 'Nyon, Gare Nord') %>% forecast(h = "5 days") %>% a
 bikes.agg.ets %>% filter(name == 'Nyon, Gare Nord') %>% forecast(h = "5 days", method = 'bu') %>% autoplot(bikes.hts)
                                                              
 
-#how about a simple ARIMA? --APPENDIX
+#ARIMA Model
 bikes.hts %>% features(Total, unitroot_kpss)
 bikes.hts %>% mutate(diff_Total = difference(Total)) %>% features(diff_Total, unitroot_kpss)
 bikes.hts %>% features(Total, unitroot_ndiffs)
