@@ -3,9 +3,17 @@ title: "Predicting Bikesharing Demand"
 author: "Group Nyon"
 date: "`r Sys.Date()`"
 output:
+  pdf_document: 
+    fig_caption: yes
+    fig_crop: no
+    fig_height: 3
+    fig_width: 8
+    number_sections: yes
   html_document:
     df_print: paged
-  pdf_document: default
+header-includes: 
+- \usepackage{graphicx}
+- \usepackage{float}
 ---
 
 ```{r data, include = FALSE}
@@ -16,6 +24,7 @@ library(zoo)
 library(timeDate)
 library(patchwork)
 library(kableExtra)
+library(float)
 ```
 
 ```{r setup, include=FALSE}
@@ -100,7 +109,7 @@ Figure 3 shows that the total bike demand is erratic. There is a clear drop in t
 
 As part of our data understanding process, we wanted to see whether there was a relationship or even a difference in demand between the normal bikes and the e-bikes. Therefore, we have calculated the correlation between them. 
 
-``` {r, echo = FALSE, warning = FALSE, message = FALSE, include = FALSE }
+``` {r, echo = FALSE, warning = FALSE, message = FALSE, include = FALSE}
 
 #plotting e-bikes and bikes together
 p1 <- total.ts %>%
@@ -172,7 +181,7 @@ bikes.simplified <- bikes.ts %>% select(!c(Bike, `E-Bike`, date_time))
 
 Let's look at that assumption in figure 4 using a temperature colored graph for one station `Nyon, Gare Nord`:
 
-```{r tempgraph, echo = FALSE, fig.cap = "Correlation between temperature and number of bikes at station"}
+```{r tempgraph, echo = FALSE, fig.cap = "Correlation between temperature and number of bikes at station", fig.pos= 'H' }
 bikes.simplified %>% filter(name == 'Nyon, Gare Nord') %>% ggplot() +
   geom_line(aes(x = date, y = TotalBikes, color = maxtempC)) +
   scale_color_gradient(low = "blue", high = "red") +
@@ -181,9 +190,30 @@ bikes.simplified %>% filter(name == 'Nyon, Gare Nord') %>% ggplot() +
 
 We can see that there is some correlation between weather and the number of bikes. As the temperature is higher, there are fewer bikes available at a station, as the temperature is lower. There are more bikes available. Therefore, we will be accounting for the temperature in our forecast. 
 
+
 # Forecast
-The table below shows the first 6 rows of the forecast that we have done for May 25, 2022. You can refer to the .csv file for all the forecasts
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
+For our forecast, we have tried several forecasting models to get a closest forecast. After fitting several models, we have chosen TSLM (Time Series Linear Model) to fit the forecast as it provided best results along time. 
+
+The table below shows the first 6 rows of the forecast that we have done for May 25, 2022. You can refer to the .csv file for all the forecasts.
+```{r, echo=FALSE, message=FALSE, warning=FALSE, show_col_types = FALSE}
 forecast <- read_csv(file = here::here("forecast.csv"))
-kable(head(forecast)) %>% kable_styling(full_width = F)
+kbl(forecast, booktabs = T)  %>%
+  #add_header_above("","Name", "Model", "Date", "Total Bikes", "Mean", "90%" ) %>% 
+kable_styling(latex_options = c("repeat_header"), font_size = 7, full_width = T) %>% column_spec(1, width = "8cm")
 ```
+
+\newpage
+
+# Appendix
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#let's start with STL decomposition
+stldcmp <- bikes.simplified %>% 
+  model(
+    STL(TotalBikes,
+        robust = TRUE)
+    ) %>% 
+  components()
+stldcmp %>% filter(name =='Nyon, La Plage') %>%  autoplot()
+```
+

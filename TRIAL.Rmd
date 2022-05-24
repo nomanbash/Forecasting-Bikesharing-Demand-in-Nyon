@@ -1,9 +1,17 @@
+---
+title: "TRIAL"
+output: html_document
+date: '2022-05-22'
+---
+
+```{r}
 #loading the df
 library(fpp3)
 library(zoo)
 library(timeDate)
 library(broom)
 library(patchwork)
+library(keep)
 
 load('Bikesharing_dataset.Rdata')
 
@@ -382,4 +390,4 @@ export <- finalforecast %>% filter(!is_aggregated(name) & .model == 'bu') %>% hi
 export
 
 write.csv(export, "forecast.csv")
-
+```
