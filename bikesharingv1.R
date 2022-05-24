@@ -4,6 +4,7 @@ library(zoo)
 library(timeDate)
 library(broom)
 library(patchwork)
+library(tidyverse)
 
 load('Bikesharing_dataset.Rdata')
 
@@ -173,19 +174,30 @@ my_dcmp_spec <- decomposition_model(
 
 fc <- bikes.simplified %>%
   model(my_dcmp_spec)
+  
+fc %>% filter(name == 'Nyon, La Plage') %>% augment()
 
+#fitted values
+augment(fc) %>% filter(name == 'Nyon, Gare Nord') %>% 
+  ggplot(aes(x = date)) +
+  geom_line(aes(y = TotalBikes, colour = "Data"), size = 1) +
+  geom_line(aes(y = .fitted, colour = "Fitted"), size = 1) + xlab("Year") + ylab(NULL) +
+  guides(colour = guide_legend(title=NULL))
+
+#forecast for 5 days
 fcast.stl <- fc %>% forecast(h = "5 days")
 accuracymatrix <- fcast.stl %>% accuracy(test.ts) %>% select(1:6)
 
+
 #no aggregation TSLM model
-bikes.lm <- bikes.simplified %>% model(TSLM(TotalBikes ~ weekday + totalSnow_cm + uvIndex + HeatIndexC + WindChillC +
+bikes.lm <- bikes.simplified %>% model(TSLM = TSLM(TotalBikes ~ weekday + totalSnow_cm + uvIndex + HeatIndexC + WindChillC +
                                        WindGustKmph + cloudcover + humidity + precipMM + maxtempC + visibility + windspeedKmph +
                                        holiday))
 
 bikes.lm %>% filter(name == 'Nyon, Changins') %>% report()
 
 #checking model vs fitted values (for 1 place)
-augment(bikes.lm) %>% filter(name == 'Nyon, La Plage') %>% 
+augment(bikes.lm) %>% filter(name == 'Nyon, Gare Nord') %>% 
   ggplot(aes(x = date)) +
   geom_line(aes(y = TotalBikes, colour = "Data"), size = 1) +
   geom_line(aes(y = .fitted, colour = "Fitted"), size = 1) + xlab("Year") + ylab(NULL) +
@@ -241,8 +253,7 @@ bikes.ets <- bikes.simplified %>% model(SimpleETS = ETS(TotalBikes ~ error("A") 
 fcast.agg.ets <- bikes.agg.ets %>% forecast(h = "5 days")
 fcast.ets <- bikes.ets %>% forecast(h = "5 days")
 
-accuracymatrix <- rbind(accuracymatrix, fcast.ets %>% accuracy(test.ts) %>% select(1:6), 
-                        fcast.agg.ets %>% accuracy(test.hts) %>% select(1:6))
+accuracymatrix <- rbind(accuracymatrix, fcast.ets %>% accuracy(test.ts) %>% select(1:6))
 
 #show the forecast
 bikes.ets %>% filter(name == 'Nyon, Gare Nord') %>% forecast(h = "5 days") %>% autoplot(bikes.simplified)
@@ -260,6 +271,7 @@ fcast.arima %>% accuracy(test.ts)
 fcast.arima %>% filter(name == 'Nyon, Gare Nord') %>% autoplot(bikes.simplified)
 accuracymatrix <- rbind(accuracymatrix, fcast.arima %>% accuracy(test.ts) %>% select(1:6))
 
+write.csv(accuracymatrix, "accuracymatrix.csv")
 
 #getting the accuracies of all the models
 accuracymatrix %>% group_by(.model) %>% summarize(ME = mean(ME), RMSE = mean(RMSE), MAE = mean(MAE))
@@ -302,11 +314,7 @@ a %>% group_by(.model) %>% summarize(ME = mean(ME), RMSE = mean(RMSE), MAE = mea
 
 
 #we've chosen our model. Now, it remains to be seen whether we want to do an aggregated one, 
-#a bike/e-bike separate one or combined one. There are four models to choose from here.
-# 1 - Model divided into regions but not into bikes/e-bikes
-# 2 - Model divided into regions and into bikes/e-biks
-# 3 - Model HTS but not bike/-ebik
-# 4 - Model HTS but into bike/e-bike
+#a bike/e-bike separate one or combined one. There are some models to choose from here. HTS and non
 
 #we've done 1. So let's do 2,3,4 and decide. We'll be using the total.ts dataset
 
@@ -330,6 +338,9 @@ hts_dcmp_spec <- decomposition_model(
 htsfcast <- total.hts %>% model(base = hts_dcmp_spec)
 accmatrix <- htsfcast %>% reconcile(bu = bottom_up(base)) %>% forecast(h = "1 day") %>% accuracy(test.hts)
 
+write.csv(accmatrix, "accmatrix.csv")
+write.csv(accuracymatrix, "accurmatrix.csv")
+accuracymatrix2 <- accuracymatrix %>% filter(.model != "AggregateETS")
 ######################################
 
 #FINAL COMPARISON. HTS OR NON-HTS
@@ -350,8 +361,27 @@ RMSE
 #the aggregated hts model outperforms the regular model by some distance using both RMSE and MAE
 
 #using the entire dataset to recreate model:
+
+load('final_dataset.Rdata')
+
+changins <- series[['Nyon, Changins']]
+debarcadere <- series[['Nyon, Débarcadère']]
+garesud <- series[['Nyon, Gare Sud']]
+piscine <- series[['Nyon, Piscine du Cossy']]
+hopital <- series[['Nyon, Hôpital']]
+perdtemps <- series[['Nyon, Petit Perdtemps']]
+hostel <- series[['Nyon, Hostel']]
+savoie <- series[['Nyon, Place de Savoie']]
+plage <- series[['Nyon, La Plage']]
+colovray <- series[['Nyon, Stade de Colovray']]
+triangle <- series[['Nyon, Triangle de l\'Etraz']]
+gare_nord <- series[['Nyon, Gare Nord']]
+chateau <- series[['Nyon, Château']]
+
+total <- rbind(changins, debarcadere, garesud, piscine, hopital, perdtemps, hostel, savoie, plage, colovray, triangle, gare_nord, chateau)
+total$date <- as.POSIXct(total$date)
   
-all.ts = as_tsibble(total, index = date, key = name, regular = TRUE)
+all.ts <- as_tsibble(total, index = date, key = name, regular = TRUE)
 all.ts <- all.ts %>% select(!Capacity)
 all.ts <- all.ts %>% fill_gaps(.full = TRUE)
 all.ts <- na.locf(all.ts)
@@ -375,7 +405,7 @@ hts_dcmp_spec <- decomposition_model(
 )
 
 htsfcast <- all.hts %>% model(base = hts_dcmp_spec)
-finalforecast <- htsfcast %>% reconcile(bu = bottom_up(base)) %>% forecast(h = "9 days")
+finalforecast <- htsfcast %>% reconcile(bu = bottom_up(base)) %>% forecast(h = "2 days")
 
 finalforecast %>% filter(is_aggregated(name) & .model == 'bu') %>% autoplot(all.hts, level = 90)
 export <- finalforecast %>% filter(!is_aggregated(name) & .model == 'bu') %>% hilo(90)
